@@ -1,0 +1,136 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local CamlockState, Enemy = false, nil
+
+-- Find nearest enemy
+local function FindNearestEnemy()
+    local ClosestDist = math.huge
+    local ClosestPlayer
+    local ScreenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer and Player.Character then
+            local Humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
+            local HRP = Player.Character:FindFirstChild("HumanoidRootPart")
+            if Humanoid and Humanoid.Health > 0 and HRP then
+                local Pos, OnScreen = Camera:WorldToViewportPoint(HRP.Position)
+                if OnScreen then
+                    local Dist = (ScreenCenter - Vector2.new(Pos.X, Pos.Y)).Magnitude
+                    if Dist < ClosestDist then
+                        ClosestDist = Dist
+                        ClosestPlayer = Player
+                    end
+                end
+            end
+        end
+    end
+    return ClosestPlayer
+end
+
+-- Remove highlight
+local function RemoveHighlight()
+    if Enemy and Enemy.Character then
+        for _, v in ipairs(Enemy.Character:GetChildren()) do
+            if v:IsA("Highlight") then v:Destroy() end
+        end
+    end
+end
+
+-- Apply highlight
+local function ApplyHighlight(target)
+    RemoveHighlight()
+    if target and target.Character then
+        local highlight = Instance.new("Highlight")
+        highlight.Adornee = target.Character
+        highlight.FillColor = Color3.fromRGB(255, 0, 0)
+        highlight.OutlineColor = Color3.fromRGB(0, 0, 0)
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        highlight.Parent = target.Character
+    end
+end
+
+-- Stop camlock when we die
+local function OnDeath()
+    CamlockState = false
+    RemoveHighlight()
+    Enemy = nil
+end
+
+-- Detect death
+LocalPlayer.CharacterAdded:Connect(function(char)
+    local hum = char:WaitForChild("Humanoid")
+    hum.Died:Connect(OnDeath)
+end)
+
+-- Camlock loop
+RunService.Heartbeat:Connect(function()
+    if CamlockState and Enemy and Enemy.Character then
+        local Head = Enemy.Character:FindFirstChild("Head")
+        if Head then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, Head.Position)
+        end
+    end
+end)
+
+-- GUI in CoreGui so it survives death
+if CoreGui:FindFirstChild("veerve") then
+    CoreGui.veerve:Destroy()
+end
+
+local veerve = Instance.new("ScreenGui")
+veerve.Name = "veerve"
+veerve.Parent = CoreGui
+
+local Frame = Instance.new("Frame")
+Frame.Parent = veerve
+Frame.Size = UDim2.new(0, 110, 0, 70)
+Frame.Position = UDim2.new(0.5, -55, 0.5, -35)
+Frame.Active, Frame.Draggable = true, true
+Instance.new("UICorner", Frame)
+
+local Button = Instance.new("TextButton")
+Button.Parent = Frame
+Button.Size = UDim2.new(0.8, 0, 0.8, 0)
+Button.Position = UDim2.new(0.1, 0, 0.1, 0)
+Button.Font = Enum.Font.Gotham
+Button.Text = "reavsloy.cc Off"
+Button.TextColor3 = Color3.new(1, 1, 1)
+Button.TextScaled = true
+Instance.new("UICorner", Button)
+
+Button.MouseButton1Click:Connect(function()
+    CamlockState = not CamlockState
+    Button.Text = CamlockState and "reavsloy.cc On" or "reavsloy.cc Off"
+
+    if CamlockState then
+        Enemy = FindNearestEnemy()
+        if Enemy then
+            ApplyHighlight(Enemy)
+            StarterGui:SetCore("SendNotification", {
+                Title = "reavsloy.cc",
+                Text = "skibidi " .. Enemy.DisplayName,
+                Duration = 3
+            })
+        end
+    else
+        RemoveHighlight()
+        Enemy = nil
+    end
+end)
+
+-- Smooth rainbow
+RunService.RenderStepped:Connect(function()
+    Frame.BackgroundColor3 = Color3.fromHSV((tick() * 0.15) % 1, 1, 1)
+end)
+
+-- Load notification
+StarterGui:SetCore("SendNotification", {
+    Title = "reavsloy.cc loaded",
+    Text = "made by tra",
+    Duration = 5
+})
